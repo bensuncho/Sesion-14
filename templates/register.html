@@ -1,0 +1,35 @@
+{% extends 'base.html' %} {% block header %}
+
+<h1>Registro para vacunación COVID-19</h1>
+{% endblock %} {% block content %}
+
+<form name="formRegistro" method="post" action="{{ url_for('register')}}">
+    <p>Nombre: <input type="text" id="nombre" name="nombre" /></p>
+
+    <p>
+        Usuario:
+        <input type="text" id="username" name="username" />
+    </p>
+
+    <p>
+        Sexo: <input type="radio" id="sexo" name="sexo" value="h" /> hombre
+        <input type="radio" name="sexo" id="sexo" value="m" /> mujer
+    </p>
+
+    <p>
+        Correo: <input type="text" id="correo" name="correo" maxlength="100" />
+    </p>
+
+    <p>
+        Contraseña:
+        <input type="password" id="password" name="password" />
+        <img src="{{ url_for('static', filename='images/view.png') }}" onmouseover="mostrarPassword();" onmouseout="ocultarPassword();" />
+    </p>
+
+    <p>
+        <input type="checkbox" name="condiciones" /> Declaro haber leido y acepto las condiciones generales del programa y la normativa sobre protección de datos
+    </p>
+
+    <button type="submit" value="Enviar">Enviar</button>
+</form>
+{% endblock %}
