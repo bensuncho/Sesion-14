@@ -8,3 +8,9 @@ class Contactenos( FlaskForm ):
     correo = EmailField( 'Correo', validators=[DataRequired( message='No dejar vacío, completar' )] )
     mensaje = StringField( 'Mensaje', validators=[DataRequired( message='No dejar vacío, completar' )] )
     enviar = SubmitField( 'Enviar Mensaje' )
+
+class Enviar(FlaskForm):
+    para =StringField( 'Usuario Destinatario', validators=[DataRequired( message='No dejar vacío, completar' )] )
+    asunto =StringField( 'Asunto del Mensaje', validators=[DataRequired( message='No dejar vacío, completar' )] )
+    mensaje =StringField( 'Cuerpo del mensaje', validators=[DataRequired( message='No dejar vacío, completar' )] )
+    enviar = SubmitField( 'Enviar Mensaje' )

@@ -6,11 +6,11 @@ from flask import current_app, g
 def get_db():
     try:
         if 'db' not in g:
-            g.db = sqlite3.connect("database.db")
-            g.db.row_factory = sqlite3.Row
+            print('conectada')
+            g.db = sqlite3.connect('database.db')
         return g.db
     except Error:
-        print( Error )
+        print(Error)
 
 
 def close_db():

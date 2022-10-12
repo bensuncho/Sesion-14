@@ -1,13 +1,10 @@
-import functools
 import os
-from re import X
-
-from flask import Flask, render_template, flash, request, redirect, url_for, session, send_file, current_app, g, make_response
-
-import utils
-from db import get_db, close_db
+import functools
 from werkzeug.security import generate_password_hash, check_password_hash
-from formulario import Contactenos
+from flask import Flask, render_template, flash, request, redirect, url_for, jsonify,session,make_response,send_file,g
+import utils as utils
+from db import close_db, get_db
+from formulario import Contactenos,Enviar
 from message import mensajes
 
 app = Flask( __name__ )
@@ -17,19 +14,21 @@ app.secret_key = os.urandom( 24 )
 @app.route( '/' )
 def index():
     if g.user:
-        return redirect( url_for( 'send' ) )
+        return redirect(url_for ('send'))
     return render_template( 'login.html' )
 
 
 @app.route( '/register', methods=('GET', 'POST') )
 def register():
     if g.user:
-        return redirect( url_for( 'send' ) )
+        return redirect(url_for ('send'))
     try:
         if request.method == 'POST':
+            
             name= request.form['nombre']
             username = request.form['username']
             password = request.form['password']
+            password_hash = generate_password_hash(password)
             email = request.form['correo']
             error = None
             db = get_db()
@@ -53,15 +52,14 @@ def register():
                 error = 'El correo ya existe'.format( email )
                 flash( error )
                 return render_template( 'register.html' )
-
-            db.execute(
-                'INSERT INTO usuario (nombre, usuario, correo, contraseña) VALUES (?,?,?,?)',
-                (name, username, email, generate_password_hash(password))
+           
+            db.executescript(
+                "INSERT INTO usuario (nombre, usuario, correo, contraseña) VALUES ('%s','%s','%s','%s')" % (name, username, email, password_hash)
             )
             db.commit()
 
             close_db()
-            
+
             flash( 'Revisa tu correo para activar tu cuenta' )
             return redirect( 'login' )
         return render_template( 'register.html' )
@@ -72,8 +70,6 @@ def register():
 @app.route( '/login', methods=('GET', 'POST') )
 def login():
     try:
-        if g.user:
-            return redirect( url_for( 'send' ) )
         if request.method == 'POST':
             db = get_db()
             error = None
@@ -89,41 +85,45 @@ def login():
                 error = 'Contraseña requerida'
                 flash( error )
                 return render_template( 'login.html' )
-    
+            
             user = db.execute(
-                'SELECT * FROM usuario WHERE usuario = ? AND contraseña = ?', (username, password)
+                'SELECT * FROM usuario WHERE usuario = ? ', (username,)
             ).fetchone()
 
-            if user is None:
-                user = db.execute(
-                    'SELECT * FROM usuario WHERE usuario = ?', (username,)
-                ).fetchone()
-                if user is None:
-                    error = 'Usuario no existe'
-                else:
-                    #Validar contraseña hash            
-                    store_password = user[4]
-                    result = check_password_hash(store_password, password)
-                    if result is False:
-                        error = 'Contraseña inválida'
-                    else:
-                        session.clear()
-                        session['user_id'] = user[0]
-                        resp = make_response( redirect( url_for( 'send' ) ) )
-                        resp.set_cookie( 'username', username )
-                        return resp
-                    flash( error )
-            else:
-                session.clear()
-                session['user_id'] = user[0]
-                return redirect( url_for( 'send' ) )
-            flash( error )
             close_db()
+
+            if user is None:
+                error = 'Usuario o contraseña inválidos'
+            else:
+                save_password = user[4]
+                resultado = check_password_hash(save_password,password)
+                if resultado is False:
+                    flash('Usuario o contraseña Invalidos') 
+                else:
+                    session.clear() 
+                    session['user_id'] = user[0]
+                    resp = make_response( redirect( url_for( 'send' ) ) )
+                    resp.set_cookie( 'username', username )
+                    return resp
+                return render_template( 'login.html' )
+            flash( error )
         return render_template( 'login.html' )
-    except Exception as e:
-        print(e)
+    except:
         return render_template( 'login.html' )
 
+def login_required(view):
+    @functools.wraps( view )
+    def wrapped_view(**kwargs):
+        if g.user is None:
+            return redirect( url_for( 'login' ) )
+        return view( **kwargs )
+    return wrapped_view
+
+@app.route( '/logout')
+@login_required
+def logout():
+    session.clear()
+    return redirect( url_for( 'login' ) ) 
 
 @app.route( '/contacto', methods=('GET', 'POST') )
 def contacto():
@@ -131,81 +131,63 @@ def contacto():
     return render_template( 'contacto.html', titulo='Contactenos', form=form )
 
 
-def login_required(view):
-    @functools.wraps( view )
-    def wrapped_view(**kwargs):
-        if g.user is None:
-            return redirect( url_for( 'login' ) )
+@app.route( '/message', methods=('GET', 'POST') )
+def message():
+    print( "Retrieving info" )
+    return jsonify( {'mensajes': mensajes} )
 
-        return view( **kwargs )
+@app.route('/send',methods =('GET','POST'))
+@login_required
+def send():
+    form = Enviar()
+    if request.method =='POST':
+        de = g.user[0]
+        para = request.form['para']
+        asunto = request.form['asunto']
+        mensaje = request.form['mensaje']
+        name = request.cookies.get('username')
 
-    return wrapped_view
+        if not para:
+            error = ' Debes ingresar el usuario al que se enviara el mensaje'
+            flash( name + error )
+            return render_template( 'send.html' , titulo='Enviar', form=form)
+ 
+        if not asunto:
+            error = ' Porfavor escriba un asunto del mensaje'
+            flash( name + error )
+            return render_template( 'send.html' , titulo='Enviar', form=form)
+ 
+        if not mensaje:
+            error = ' Escriba un mensaje para ser enviado'
+            flash( name + error )
+            return render_template( 'send.html' , titulo='Enviar', form=form)
+        db = get_db()
+        
+        para =  db.execute('SELECT * FROM usuario WHERE  usuario = ?',(para,)
+        ).fetchone()
+        if para is None:
+            flash('No existe el usuario')
+        else:
+            db.execute('INSERT INTO mensajes (from_id, to_id, asunto, mensaje) VALUES(?,?,?,?)',(de,para[0],asunto,mensaje))
+            db.commit()
+            flash("Mensaje enviado con exito")
+        close_db()
+ 
+    return render_template ('send.html' , titulo='Enviar', form=form)
 
-
-@app.route( '/downloadpdf', methods=('GET', 'POST') )
-# @login_required
+@app.route( '/downloadpdf')
+@login_required
 def downloadpdf():
-    return send_file( "resources/doc.pdf", as_attachment=True )
-
-
+    return send_file( "resources/doc.pdf", as_attachment=True)
+ 
 @app.route( '/downloadimage', methods=('GET', 'POST') )
 @login_required
 def downloadimage():
     return send_file( "resources/image.png", as_attachment=True )
 
-
-@app.route( '/send', methods=('GET', 'POST') )
-@login_required
-def send():
-    if request.method == 'POST':
-        from_id = g.user['id']
-        to_username = request.form['para']
-        subject = request.form['asunto']
-        body = request.form['mensaje']
-        db = get_db()
-
-        if not to_username:
-            flash( 'Para campo requerido' )
-            return render_template( 'send.html' )
-
-        if not subject:
-            flash( 'Asunto es requerido' )
-            return render_template( 'send.html' )
-
-        if not body:
-            flash( 'Mensaje es requerido' )
-            return render_template( 'send.html' )
-
-        error = None
-        userto = None
-
-        userto = db.execute(
-            'SELECT * FROM usuario WHERE usuario = ?', (to_username,)
-        ).fetchone()
-
-        if userto is None:
-            error = 'No existe ese usuario'
-
-        if error is not None:
-            flash( error )
-        else:
-            db = get_db()
-            db.execute(
-                'INSERT INTO mensajes (from_id, to_id, asunto, mensaje)'
-                ' VALUES (?, ?, ?, ?)',
-                (g.user['id'], userto['id'], subject, body)
-            )
-            db.commit()
-            
-            flash( "Mensaje Enviado" )
-        
-        close_db()
-    return render_template( 'send.html' )
-
 @app.before_request
 def load_logged_in_user():
     user_id = session.get( 'user_id' )
-
     if user_id is None:
         g.user = None
     else:
@@ -214,13 +196,5 @@ def load_logged_in_user():
         ).fetchone()
         close_db()
 
-
-@app.route( '/logout' )
-def logout():
-    session.clear()
-    return redirect( url_for( 'login' ) )
-
-
 if __name__ == '__main__':
     app.run()
-    

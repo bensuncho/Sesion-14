@@ -1,22 +1,19 @@
-{% extends 'base.html' %} {% block header %}
-<h1>Envio de Mensajes</h1>
-{% endblock %} {% block content %}
-<form method="post" action="{{url_for('send')}}">
-    <div>
-        <label for="para">Para</label>
-        <input name="para" id="para" required />
-    </div>
-
-    <div>
-        <label for="asunto">Asunto</label>
-        <input name="asunto" id="asunto " required />
-    </div>
-
-    <div>
-        <label for="mensaje">Mensaje</label>
-        <textarea name="mensaje" id="mensaje" required></textarea>
-    </div>
-
-    <button type="submit" value="Enviar ">Enviar</button>
+{% extends 'base.html' %}
+{% block contenido %}
+<form action="{{url_for('send')}}" method="post">
+    {{ form.hidden_tag() }}
+    <p>
+        {{ form.para.label }}<br />
+        {{ form.para(size=30)}}<br />
+    </p>
+    <p>
+        {{ form.asunto.label }}<br />
+        {{ form.asunto(size=30) }}<br />
+    </p>
+    <p>
+        {{ form.mensaje.label }}<br />
+        {{ form.mensaje(size=30) }}<br />
+    </p>
+    <p>{{ form.enviar() }}</p>
 </form>
 {% endblock %}
